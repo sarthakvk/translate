@@ -18,8 +18,10 @@ let ws = null;
 let audioCtx = null;
 let sourceNode = null;
 let processorNode = null;
-let audioQueue = [];       // pending base64 MP3 clips
-let isPlaying = false;     // true while an Audio object is active
+let audioQueue = [];         // pending base64 MP3 clips
+let isPlaying = false;       // true while an Audio object is active
+let currentAudio = null;     // the Audio element currently playing
+let pausedForSpeech = false; // true while audio is paused waiting for user silence
 let phraseStartTime = null;
 
 const startBtn = document.getElementById("startBtn");
@@ -87,6 +89,7 @@ function playAudio(b64mp3) {
 function playNext() {
   if (audioQueue.length === 0) {
     isPlaying = false;
+    currentAudio = null;
     setStatus("listening");
     return;
   }
@@ -98,14 +101,17 @@ function playNext() {
   const blob = b64toBlob(b64mp3, "audio/mpeg");
   const url  = URL.createObjectURL(blob);
   const audio = new Audio(url);
+  currentAudio = audio;
 
   audio.addEventListener("ended", () => {
     URL.revokeObjectURL(url);
+    currentAudio = null;
     playNext();
   });
 
   audio.play().catch(err => {
     console.warn("Audio play failed:", err);
+    currentAudio = null;
     playNext();
   });
 }
@@ -132,6 +138,20 @@ function openWS() {
         break;
       case "audio":
         playAudio(msg.data);
+        break;
+      case "speech_start":
+        if (currentAudio && !currentAudio.paused) {
+          currentAudio.pause();
+          pausedForSpeech = true;
+          setStatus("listening");
+        }
+        break;
+      case "speech_end":
+        if (pausedForSpeech && currentAudio) {
+          pausedForSpeech = false;
+          currentAudio.play().catch(() => playNext());
+          setStatus("speaking");
+        }
         break;
       case "error":
         clearPlaceholders();
@@ -218,6 +238,8 @@ stopBtn.addEventListener("click", () => {
   stopCapture();
   audioQueue = [];
   isPlaying = false;
+  currentAudio = null;
+  pausedForSpeech = false;
 
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "stop" }));

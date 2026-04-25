@@ -9,6 +9,7 @@ silence follows speech.
 import webrtcvad
 import numpy as np
 from collections import deque
+from dataclasses import dataclass, field
 from typing import Optional
 
 from .config import (
@@ -18,6 +19,12 @@ from .config import (
     VAD_SILENCE_THRESHOLD_FRAMES,
     VAD_MIN_SPEECH_FRAMES,
 )
+
+
+@dataclass
+class VADEvent:
+    speech_started: bool = False   # VAD just transitioned into in-speech this call
+    phrase: Optional[np.ndarray] = field(default=None)  # completed phrase audio
 
 
 class VADProcessor:
@@ -30,37 +37,44 @@ class VADProcessor:
         # Keep a small pre-roll buffer so we don't clip the phrase start
         self._pre_roll: deque[bytes] = deque(maxlen=5)
 
-    def feed(self, pcm_bytes: bytes) -> Optional[np.ndarray]:
+    def feed(self, pcm_bytes: bytes) -> VADEvent:
         """
         Feed one chunk of raw PCM bytes (any size, will be split into 30ms frames).
-        Returns a float32 numpy array (phrase audio at 16kHz) when a complete
-        phrase is ready, otherwise None.
+        Returns a VADEvent with:
+          - speech_started: True the first time VAD transitions into in-speech
+          - phrase: float32 numpy array when a complete phrase is ready
         """
-        result: Optional[np.ndarray] = None
+        speech_started = False
+        phrase: Optional[np.ndarray] = None
 
-        # Split incoming bytes into 30ms frames
         frame_size = VAD_FRAME_SAMPLES * 2  # 2 bytes per int16 sample
         offset = 0
         while offset + frame_size <= len(pcm_bytes):
             frame = pcm_bytes[offset: offset + frame_size]
             offset += frame_size
-            frame_result = self._process_frame(frame)
-            if frame_result is not None:
-                result = frame_result
+            started, result = self._process_frame(frame)
+            if started:
+                speech_started = True
+            if result is not None:
+                phrase = result
 
-        return result
+        return VADEvent(speech_started=speech_started, phrase=phrase)
 
-    def _process_frame(self, frame: bytes) -> Optional[np.ndarray]:
+    def _process_frame(self, frame: bytes) -> tuple[bool, Optional[np.ndarray]]:
+        """Returns (speech_started_this_frame, completed_phrase_or_None)."""
         try:
             is_speech = self._vad.is_speech(frame, SAMPLE_RATE)
         except Exception:
             is_speech = False
+
+        speech_started = False
 
         if is_speech:
             self._silence_count = 0
             self._speech_count += 1
             if not self._in_speech and self._speech_count >= VAD_MIN_SPEECH_FRAMES:
                 self._in_speech = True
+                speech_started = True
                 # Prepend pre-roll so phrase start isn't clipped
                 self._speech_buf = list(self._pre_roll)
             if self._in_speech:
@@ -71,11 +85,11 @@ class VADProcessor:
                 self._silence_count += 1
                 self._speech_buf.append(frame)
                 if self._silence_count >= VAD_SILENCE_THRESHOLD_FRAMES:
-                    return self._flush()
+                    return speech_started, self._flush()
             else:
                 self._speech_count = 0
 
-        return None
+        return speech_started, None
 
     def _flush(self) -> Optional[np.ndarray]:
         if not self._speech_buf:

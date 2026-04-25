@@ -35,9 +35,13 @@ class Pipeline:
         self._prev_hindi = ""
 
     async def feed(self, pcm_bytes: bytes) -> AsyncGenerator[dict, None]:
-        phrase = self._vad.feed(pcm_bytes)
-        if phrase is not None:
-            async for msg in self._run(phrase):
+        event = self._vad.feed(pcm_bytes)
+        if event.speech_started:
+            yield {"type": "speech_start"}
+        if event.phrase is not None:
+            # Resume paused audio immediately — before the slow ASR/translate/TTS pipeline
+            yield {"type": "speech_end"}
+            async for msg in self._run(event.phrase):
                 yield msg
 
     async def stop(self) -> AsyncGenerator[dict, None]:
