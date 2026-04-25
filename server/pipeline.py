@@ -5,9 +5,11 @@ Each WebSocket connection owns one Pipeline instance. The pipeline exposes:
   - feed(pcm_bytes) → async generator yielding WS messages
   - stop()          → flushes any buffered speech and yields final messages
 
-Audio is queued on the client side — new phrases never cancel in-flight TTS.
+When the user speaks while TTS is playing, the client stops playback immediately
+(triggered by the speech_start signal) and the audio queue is cleared.
 
 WS message shapes (dicts, serialised to JSON by main.py):
+  {"type": "speech_start"}
   {"type": "transcript", "en": str, "stage": "final"}
   {"type": "transcript", "en": str, "hi": str, "stage": "final"}
   {"type": "audio",      "data": <base64 MP3 str>}
