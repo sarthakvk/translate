@@ -18,10 +18,9 @@ let ws = null;
 let audioCtx = null;
 let sourceNode = null;
 let processorNode = null;
-let audioQueue = [];         // pending base64 MP3 clips
-let isPlaying = false;       // true while an Audio object is active
-let currentAudio = null;     // the Audio element currently playing
-let pausedForSpeech = false; // true while audio is paused waiting for user silence
+let audioQueue = [];       // pending base64 MP3 clips
+let isPlaying = false;     // true while an Audio object is active
+let currentAudio = null;   // the Audio element currently playing
 let phraseStartTime = null;
 
 const startBtn = document.getElementById("startBtn");
@@ -140,17 +139,12 @@ function openWS() {
         playAudio(msg.data);
         break;
       case "speech_start":
-        if (currentAudio && !currentAudio.paused) {
-          currentAudio.pause();
-          pausedForSpeech = true;
+        if (isPlaying) {
+          currentAudio?.pause();
+          currentAudio = null;
+          audioQueue = [];
+          isPlaying = false;
           setStatus("listening");
-        }
-        break;
-      case "speech_end":
-        if (pausedForSpeech && currentAudio) {
-          pausedForSpeech = false;
-          currentAudio.play().catch(() => playNext());
-          setStatus("speaking");
         }
         break;
       case "error":
@@ -236,10 +230,10 @@ stopBtn.addEventListener("click", () => {
   setStatus("idle");
 
   stopCapture();
+  currentAudio?.pause();
+  currentAudio = null;
   audioQueue = [];
   isPlaying = false;
-  currentAudio = null;
-  pausedForSpeech = false;
 
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "stop" }));
