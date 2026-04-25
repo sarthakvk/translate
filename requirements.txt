@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+websockets
+groq
+webrtcvad
+deep-translator
+edge-tts
+numpy
+soundfile
+python-dotenv

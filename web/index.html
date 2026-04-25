@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live EN → HI Translator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎙️ Live English → Hindi Translator</h1>
+      <p class="subtitle">Speak in English. Hear it in Hindi.</p>
+    </header>
+
+    <main>
+      <div class="controls">
+        <button id="startBtn" class="btn btn-start">
+          <span class="icon">🎤</span> Start
+        </button>
+        <button id="stopBtn" class="btn btn-stop" disabled>
+          <span class="icon">⏹</span> Stop
+        </button>
+        <div id="statusBadge" class="badge badge-idle">Idle</div>
+      </div>
+
+      <div class="transcripts">
+        <div class="lane" id="enLane">
+          <div class="lane-header">
+            <span class="flag">🇬🇧</span> English
+          </div>
+          <div class="lane-body" id="enBody">
+            <p class="placeholder">English transcription will appear here…</p>
+          </div>
+        </div>
+        <div class="divider">→</div>
+        <div class="lane" id="hiLane">
+          <div class="lane-header">
+            <span class="flag">🇮🇳</span> Hindi
+          </div>
+          <div class="lane-body" id="hiBody">
+            <p class="placeholder">हिंदी अनुवाद यहाँ दिखेगा…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="latency-bar">
+        <span id="latencyLabel"></span>
+      </div>
+    </main>
+
+    <footer>
+      <small>Pipeline: Groq Whisper → Google Translate → Microsoft edge-tts</small>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

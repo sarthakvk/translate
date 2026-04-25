@@ -1,0 +1,173 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3350;
+  --accent: #6c63ff;
+  --accent-hover: #857dff;
+  --danger: #ff5c5c;
+  --text: #e8eaf6;
+  --text-muted: #7b82a8;
+  --green: #4caf8a;
+  --radius: 12px;
+  --font: "Inter", system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+}
+
+.app {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ── Header ── */
+header { text-align: center; }
+header h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; }
+.subtitle { margin-top: 0.4rem; color: var(--text-muted); font-size: 0.95rem; }
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  border: none;
+  border-radius: 9999px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.btn-start { background: var(--accent); color: #fff; }
+.btn-start:not(:disabled):hover { background: var(--accent-hover); }
+
+.btn-stop { background: var(--danger); color: #fff; }
+.btn-stop:not(:disabled):hover { background: #ff7070; }
+
+/* ── Status Badge ── */
+.badge {
+  padding: 0.35rem 0.9rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge-idle       { background: var(--surface2); color: var(--text-muted); }
+.badge-listening  { background: #1a3a2a; color: var(--green); }
+.badge-processing { background: #2a2a1a; color: #d4b44a; }
+.badge-speaking   { background: #1a1a3a; color: var(--accent); }
+
+/* Pulsing dot for listening */
+.badge-listening::before {
+  content: "● ";
+  animation: pulse 1s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+/* ── Transcript Lanes ── */
+.transcripts {
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 320px;
+}
+
+.lane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.lane-header {
+  padding: 0.75rem 1.25rem;
+  background: var(--surface2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lane-body {
+  flex: 1;
+  padding: 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 420px;
+}
+
+.placeholder { color: var(--text-muted); font-style: italic; font-size: 0.9rem; }
+
+.divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+/* ── Phrase Bubbles ── */
+.phrase {
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  animation: fadeIn 0.2s ease;
+}
+.phrase-en { background: var(--surface2); color: var(--text); }
+.phrase-hi { background: #1e1a35; color: #c8bfff; font-size: 1rem; }
+.phrase-error { background: #2a1a1a; color: #ff9090; font-size: 0.85rem; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── Latency bar ── */
+.latency-bar {
+  text-align: center;
+  min-height: 1.2rem;
+}
+#latencyLabel { color: var(--text-muted); font-size: 0.8rem; }
+
+/* ── Footer ── */
+footer { text-align: center; color: var(--text-muted); }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .transcripts { flex-direction: column; }
+  .divider { padding: 0.5rem; border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+}
