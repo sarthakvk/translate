@@ -12,7 +12,7 @@ Real-time voice-to-voice English → Hindi translation pipeline. Speak in Englis
         ▼
 ┌─────────────────────────────────────────────────────────┐
 │  VAD  —  webrtcvad, 30 ms frames                        │
-│  Accumulates audio until ≥ 400 ms of silence.           │
+│  Accumulates audio until ≥ 390 ms of silence.           │
 │  Emits one phrase blob per natural pause.               │
 └────────────────────────┬────────────────────────────────┘
                          │ float32 PCM array
@@ -43,7 +43,8 @@ Real-time voice-to-voice English → Hindi translation pipeline. Speak in Englis
 ┌─────────────────────────────────────────────────────────┐
 │  Post-processor  —  preprocessor.py                     │
 │  Restores tagged named entities the translator          │
-│  may have transliterated or mangled.                    │
+│  may have transliterated or mangled, then cleans        │
+│  extra whitespace.                                      │
 └────────────────────────┬────────────────────────────────┘
                          │ clean Hindi string
                          ▼
@@ -62,7 +63,7 @@ Real-time voice-to-voice English → Hindi translation pipeline. Speak in Englis
 
 ### Why phrase-level, not word-by-word streaming
 
-Word-by-word translation produces grammatically broken Hindi because Hindi word order is SOV (subject–object–verb) while English is SVO. A sentence can only be correctly translated once its structure is known. The VAD buffers audio until a natural pause (≥ 400 ms of silence), then fires the full phrase through the pipeline in one shot. This trades ~0.4 s of extra latency for coherent output.
+Word-by-word translation produces grammatically broken Hindi because Hindi word order is SOV (subject–object–verb) while English is SVO. A sentence can only be correctly translated once its structure is known. The VAD buffers audio until a natural pause (≥ 390 ms of silence), then fires the full phrase through the pipeline in one shot. This trades ~0.4 s of extra latency for coherent output.
 
 ### Why Groq for ASR
 
@@ -70,7 +71,7 @@ Groq runs Whisper-large-v3 on dedicated LPU hardware, returning transcriptions i
 
 ### Barge-in: skip on new speech
 
-When you start speaking while Hindi audio is playing, the current clip is stopped immediately and the pending queue is cleared. The new phrase is processed and its audio plays once translation is complete. This keeps output in sync with the conversation — old phrases don't pile up while you've already moved on.
+When you start speaking while Hindi audio is playing, the server emits `speech_start` only after VAD sees enough consecutive voiced frames with enough audio energy. The client pauses the current clip but keeps its place and queue. If ASR accepts the utterance, `speech_confirmed` makes the client discard old playback; if ASR rejects noise or a hallucination, `speech_rejected` makes the client resume.
 
 ### Named entity preservation
 
@@ -86,7 +87,7 @@ All messages are JSON.
 
 | Message | When |
 |---|---|
-| `{"type":"audio","data":"<base64 PCM int16>"}` | Every ~256 ms chunk from MediaRecorder |
+| `{"type":"audio","data":"<base64 PCM int16>"}` | Every ~256 ms chunk from ScriptProcessorNode |
 | `{"type":"stop"}` | User clicks Stop; server flushes any buffered speech |
 
 **Server → Client**
@@ -95,7 +96,9 @@ All messages are JSON.
 |---|---|
 | `{"type":"transcript","en":"...","stage":"final"}` | ASR done, translation in flight |
 | `{"type":"transcript","en":"...","hi":"...","stage":"final"}` | Translation done |
-| `{"type":"speech_start"}` | VAD detected start of new utterance; client stops current playback |
+| `{"type":"speech_start"}` | VAD detected start of new utterance; client pauses current playback |
+| `{"type":"speech_confirmed"}` | ASR accepted the utterance; client discards old playback |
+| `{"type":"speech_rejected"}` | ASR rejected noise or hallucination; client resumes old playback |
 | `{"type":"audio","data":"<base64 MP3>"}` | TTS ready; client queues for playback |
 | `{"type":"error","message":"..."}` | Any pipeline exception |
 
@@ -133,6 +136,7 @@ uvicorn server.main:app --reload
 | Fillers ("uh", "you know") | Stripped by pre-processor before translation |
 | Named entities ("Google Meet", "Asterisk") | Placeholder tagging → post-processor restore |
 | Strong accent / fast speech | Whisper-large-v3 with forced `language="en"` |
+| Background noise becomes "thank you" | Low-energy audio and common short ASR hallucinations are suppressed before translation |
 | Partial phrase / sentence fragments | VAD holds until silence; incomplete phrases never translate |
 | Stutter / repeated words | Regex collapser: "the the meeting" → "the meeting" |
 | Tone (formal vs casual) | Keyword heuristic sets tone hint in translator context |
@@ -148,8 +152,11 @@ All tuneable parameters are in [`server/config.py`](server/config.py).
 | Setting | Default | Effect |
 |---|---|---|
 | `VAD_AGGRESSIVENESS` | `2` | 0–3; higher filters more background noise |
-| `VAD_SILENCE_THRESHOLD_FRAMES` | `13` | ~400 ms silence = phrase end; raise for slow speakers |
+| `VAD_SILENCE_THRESHOLD_FRAMES` | `13` | 390 ms silence = phrase end; raise for slow speakers |
 | `VAD_MIN_SPEECH_FRAMES` | `8` | Minimum voiced frames before a phrase is considered real |
+| `VAD_START_MIN_RMS` / `VAD_START_MIN_PEAK` | `0.010` / `0.040` | Minimum energy before speech interrupts playback |
+| `ASR_MIN_RMS` / `ASR_MIN_PEAK` | `0.006` / `0.025` | Drop very quiet VAD phrases before ASR |
+| `ASR_HALLUCINATION_RMS` | `0.012` | Suppress known ASR hallucination phrases below this RMS |
 | `WHISPER_MODEL` | `whisper-large-v3` | Also try `whisper-large-v3-turbo` for lower latency |
 | `TTS_VOICE` | `hi-IN-SwaraNeural` | Female voice; `hi-IN-MadhurNeural` for male |
 | `NAMED_ENTITIES` | list in config | Add domain-specific proper nouns here |
@@ -172,7 +179,7 @@ translate/
 │   └── config.py         All tuneable parameters and word lists
 ├── web/
 │   ├── index.html        Browser UI — mic button, EN/HI transcript panes
-│   ├── app.js            WebSocket client, MediaRecorder, audio queue
+│   ├── app.js            WebSocket client, ScriptProcessorNode, audio queue
 │   └── style.css         Dark theme
 ├── Dockerfile
 ├── docker-compose.yml

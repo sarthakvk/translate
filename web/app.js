@@ -21,6 +21,8 @@ let processorNode = null;
 let audioQueue = [];       // pending base64 MP3 clips
 let isPlaying = false;     // true while an Audio object is active
 let currentAudio = null;   // the Audio element currently playing
+let currentAudioUrl = null;
+let pendingBargeIn = false;
 let phraseStartTime = null;
 
 const startBtn = document.getElementById("startBtn");
@@ -89,6 +91,7 @@ function playNext() {
   if (audioQueue.length === 0) {
     isPlaying = false;
     currentAudio = null;
+    currentAudioUrl = null;
     setStatus("listening");
     return;
   }
@@ -101,18 +104,73 @@ function playNext() {
   const url  = URL.createObjectURL(blob);
   const audio = new Audio(url);
   currentAudio = audio;
+  currentAudioUrl = url;
 
   audio.addEventListener("ended", () => {
+    const isCurrent = currentAudio === audio;
     URL.revokeObjectURL(url);
+    if (!isCurrent) return;
     currentAudio = null;
+    currentAudioUrl = null;
     playNext();
   });
 
   audio.play().catch(err => {
+    if (pendingBargeIn && currentAudio === audio) return;
     console.warn("Audio play failed:", err);
+    const isCurrent = currentAudio === audio;
+    URL.revokeObjectURL(url);
+    if (!isCurrent) return;
     currentAudio = null;
+    currentAudioUrl = null;
     playNext();
   });
+}
+
+function stopCurrentAudio() {
+  currentAudio?.pause();
+  currentAudio = null;
+  if (currentAudioUrl) {
+    URL.revokeObjectURL(currentAudioUrl);
+    currentAudioUrl = null;
+  }
+}
+
+function pauseForBargeIn() {
+  if (!currentAudio || pendingBargeIn) return;
+  pendingBargeIn = true;
+  currentAudio.pause();
+  setStatus("listening");
+}
+
+function confirmBargeIn() {
+  if (!pendingBargeIn) return;
+  stopCurrentAudio();
+  audioQueue = [];
+  isPlaying = false;
+  pendingBargeIn = false;
+  setStatus("listening");
+}
+
+function rejectBargeIn() {
+  if (!pendingBargeIn) return;
+  pendingBargeIn = false;
+
+  if (currentAudio) {
+    isPlaying = true;
+    setStatus("speaking");
+    currentAudio.play().catch(err => {
+      console.warn("Audio resume failed:", err);
+      stopCurrentAudio();
+      isPlaying = false;
+      playNext();
+    });
+  } else if (audioQueue.length > 0) {
+    playNext();
+  } else {
+    isPlaying = false;
+    setStatus("listening");
+  }
 }
 
 function b64toBlob(b64, mime) {
@@ -139,13 +197,13 @@ function openWS() {
         playAudio(msg.data);
         break;
       case "speech_start":
-        if (isPlaying) {
-          currentAudio?.pause();
-          currentAudio = null;
-          audioQueue = [];
-          isPlaying = false;
-          setStatus("listening");
-        }
+        pauseForBargeIn();
+        break;
+      case "speech_confirmed":
+        confirmBargeIn();
+        break;
+      case "speech_rejected":
+        rejectBargeIn();
         break;
       case "error":
         clearPlaceholders();
@@ -230,10 +288,10 @@ stopBtn.addEventListener("click", () => {
   setStatus("idle");
 
   stopCapture();
-  currentAudio?.pause();
-  currentAudio = null;
+  stopCurrentAudio();
   audioQueue = [];
   isPlaying = false;
+  pendingBargeIn = false;
 
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "stop" }));

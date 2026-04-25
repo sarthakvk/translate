@@ -14,10 +14,28 @@ VAD_AGGRESSIVENESS = 2
 VAD_FRAME_MS = 30
 VAD_FRAME_SAMPLES = SAMPLE_RATE * VAD_FRAME_MS // 1000  # 480
 
-# How many consecutive silent frames = phrase boundary (400ms / 30ms = ~13 frames)
+# How many consecutive silent frames = phrase boundary (390ms / 30ms = 13 frames)
 VAD_SILENCE_THRESHOLD_FRAMES = 13
 # Minimum voiced frames before we consider it real speech (avoid single pops)
 VAD_MIN_SPEECH_FRAMES = 8
+# Minimum energy required before VAD emits speech_start and interrupts playback.
+VAD_START_MIN_RMS = 0.010
+VAD_START_MIN_PEAK = 0.040
+
+# Drop very quiet phrase blobs before ASR; these are usually background noise.
+ASR_MIN_RMS = 0.006
+ASR_MIN_PEAK = 0.025
+
+# Whisper-style models can hallucinate short polite phrases on low-energy noise.
+# Suppress these only when audio energy is still low enough to be suspicious.
+ASR_HALLUCINATION_RMS = 0.012
+ASR_HALLUCINATION_PHRASES = {
+    "thank you",
+    "thanks",
+    "thank you very much",
+    "thank you for watching",
+    "thanks for watching",
+}
 
 WHISPER_MODEL = "whisper-large-v3"
 WHISPER_LANGUAGE = "en"

@@ -7,7 +7,6 @@ English text. Audio is encoded to WAV in-memory — no temp files needed.
 
 import io
 import wave
-import asyncio
 import numpy as np
 from groq import AsyncGroq
 

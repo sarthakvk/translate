@@ -6,7 +6,6 @@ No API key required — edge-tts uses Microsoft's free TTS endpoint.
 """
 
 import io
-import asyncio
 import edge_tts
 
 from .config import TTS_VOICE

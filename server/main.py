@@ -13,6 +13,8 @@ WebSocket message protocol:
 
   Server → Client (JSON):
     {"type": "speech_start"}                                 ← VAD detected speech start
+    {"type": "speech_confirmed"}                             ← ASR accepted the utterance
+    {"type": "speech_rejected"}                              ← ASR rejected noise/hallucination
     {"type": "transcript", "en": str, "stage": "final"}
     {"type": "transcript", "en": str, "hi": str, "stage": "final"}
     {"type": "audio",      "data": "<base64 MP3>"}
