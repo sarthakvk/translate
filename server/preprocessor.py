@@ -21,6 +21,16 @@ from .config import FILLERS, NAMED_ENTITIES
 _PLACEHOLDER_TEMPLATE = "XENTX{idx}X"
 _PLACEHOLDER_RE = re.compile(r"XENTX(\d+)X")
 
+# Pre-sorted and pre-compiled at import time — never re-sorted or re-compiled per phrase
+_FILLER_PATTERNS: list[re.Pattern] = [
+    re.compile(r"(?i)\b" + re.escape(f) + r"\b[,]?\s*")
+    for f in sorted(FILLERS, key=len, reverse=True)
+]
+_ENTITY_PATTERNS: list[tuple[str, re.Pattern]] = [
+    (entity, re.compile(re.escape(entity), re.IGNORECASE))
+    for entity in sorted(NAMED_ENTITIES, key=len, reverse=True)
+]
+
 
 @dataclass
 class ProcessedText:
@@ -52,11 +62,8 @@ def postprocess(hindi: str, entity_map: dict[int, str]) -> str:
 # ---------------------------------------------------------------------------
 
 def _strip_fillers(text: str) -> str:
-    """Remove filler words/phrases at word boundaries."""
-    # Sort by length descending so multi-word fillers ("you know") match before single words
-    for filler in sorted(FILLERS, key=len, reverse=True):
-        pattern = r"(?i)\b" + re.escape(filler) + r"\b[,]?\s*"
-        text = re.sub(pattern, " ", text)
+    for pattern in _FILLER_PATTERNS:
+        text = pattern.sub(" ", text)
     return text
 
 
@@ -68,18 +75,16 @@ def _collapse_stutters(text: str) -> str:
 def _tag_entities(text: str) -> tuple[str, dict[int, str]]:
     """
     Replace named entities with placeholders so Google Translate won't mangle them.
-    Entities are sorted longest-first to avoid partial matches.
+    Patterns are pre-sorted longest-first to avoid partial matches (e.g. "Google"
+    matching inside "Google Meet").
     """
     entity_map: dict[int, str] = {}
     idx = 0
-    for entity in sorted(NAMED_ENTITIES, key=len, reverse=True):
-        pattern = re.compile(re.escape(entity), re.IGNORECASE)
-        if pattern.search(text):
+    for entity, pattern in _ENTITY_PATTERNS:
+        match = pattern.search(text)
+        if match:
             placeholder = _PLACEHOLDER_TEMPLATE.format(idx=idx)
-            # Preserve the original casing from the text
-            match = pattern.search(text)
-            if match:
-                entity_map[idx] = match.group(0)
+            entity_map[idx] = match.group(0)
             text = pattern.sub(placeholder, text)
             idx += 1
     return text, entity_map

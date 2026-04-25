@@ -37,7 +37,7 @@ async def translate(processed: ProcessedText, prev_hindi: str = "") -> str:
     input_text = context_prefix + text
 
     # Run blocking translator in a thread so we don't block the event loop
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     raw: str = await loop.run_in_executor(
         None, lambda: _translator.translate(input_text)
     )
