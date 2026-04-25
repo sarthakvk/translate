@@ -9,14 +9,13 @@ Routes:
 WebSocket message protocol:
   Client → Server (JSON):
     {"type": "audio", "data": "<base64 raw PCM int16 at 16kHz>"}
-    {"type": "tts_done"}    ← client signals TTS playback finished
     {"type": "stop"}        ← client signals end of session / flush
 
   Server → Client (JSON):
+    {"type": "speech_start"}                                 ← VAD detected speech start
     {"type": "transcript", "en": str, "stage": "final"}
     {"type": "transcript", "en": str, "hi": str, "stage": "final"}
     {"type": "audio",      "data": "<base64 MP3>"}
-    {"type": "cancel"}
     {"type": "error",      "message": str}
 """
 
@@ -61,9 +60,6 @@ async def ws_endpoint(websocket: WebSocket):
                 pcm_bytes = base64.b64decode(msg["data"])
                 async for out in pipeline.feed(pcm_bytes):
                     await websocket.send_text(json.dumps(out))
-
-            elif kind == "tts_done":
-                pipeline.tts_done()
 
             elif kind == "stop":
                 async for out in pipeline.stop():

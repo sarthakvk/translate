@@ -68,9 +68,9 @@ Word-by-word translation produces grammatically broken Hindi because Hindi word 
 
 Groq runs Whisper-large-v3 on dedicated LPU hardware, returning transcriptions in ~100–250 ms for a typical phrase — faster than running Whisper locally on a CPU-only or M-series Mac. No model download required; just a free API key. The alternative (`faster-whisper` locally) would take 300–600 ms on CPU and requires ~1.5 GB of disk per model.
 
-### Audio queue, not barge-in
+### Barge-in: skip on new speech
 
-When you speak while Hindi audio is playing, the new phrase is processed concurrently and its audio is **queued**. Clips play back-to-back in order. Nothing is cancelled or skipped. This is more natural than stopping mid-sentence, and avoids the jarring effect of abrupt interruption.
+When you start speaking while Hindi audio is playing, the current clip is stopped immediately and the pending queue is cleared. The new phrase is processed and its audio plays once translation is complete. This keeps output in sync with the conversation — old phrases don't pile up while you've already moved on.
 
 ### Named entity preservation
 
@@ -95,6 +95,7 @@ All messages are JSON.
 |---|---|
 | `{"type":"transcript","en":"...","stage":"final"}` | ASR done, translation in flight |
 | `{"type":"transcript","en":"...","hi":"...","stage":"final"}` | Translation done |
+| `{"type":"speech_start"}` | VAD detected start of new utterance; client stops current playback |
 | `{"type":"audio","data":"<base64 MP3>"}` | TTS ready; client queues for playback |
 | `{"type":"error","message":"..."}` | Any pipeline exception |
 
@@ -136,7 +137,7 @@ uvicorn server.main:app --reload
 | Stutter / repeated words | Regex collapser: "the the meeting" → "the meeting" |
 | Tone (formal vs casual) | Keyword heuristic sets tone hint in translator context |
 | Numbers & times ("5 PM", "ETA") | Google Translate handles most; entity list covers abbreviations |
-| Speaking while TTS plays | New phrase queued; current clip finishes before next plays |
+| Speaking while TTS plays | Current audio stopped and queue cleared; new phrase plays after translation |
 
 ---
 
